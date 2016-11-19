@@ -1,0 +1,123 @@
+---
+title: "Practical ML Report"
+author: "Haonan"
+date: "November 17, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this report, we'll use a weight lifting exercise dataset, these data comes from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, and we'll use it to build a machine learning model to predict, under certain condition, the "goodness" of the efficiency an exercise performed. 
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+Load all the necessary packages we'll use later, and set the working directory properly
+```{r, results='hide'}
+setwd("C:/Users/Haonan/Desktop/Study/R/Machine Learning Project")
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+```
+
+#Data Viewing and Cleaning
+
+Load the two data set first, and save them in a data frame namely "combined" and "prediction"
+```{r echo=F, results='hide'}
+combined <- read.csv("pml-training.csv", header = T,na.strings=c("NA","#DIV/0!",""))
+prediction <- read.csv("pml-testing.csv", header = T,na.strings=c("NA","#DIV/0!",""))
+```
+
+Then take a look at the dimension of the data sets and have a glance of the combined dataset
+```{r}
+dim(combined);dim(prediction)
+```
+```{r results='hide'}
+View(combined); View(prediction)
+```
+
+There're three characteristics which are obvious, first, only 20 obserevations in the prediction data set; second, there're too many NAs in the dataset, third, the prediction dataset doesn't have "classe" feature, which is to be predicted. 
+
+Let's check the proportion of the NAs in the data set
+```{r}
+sum(is.na(combined))/(dim(combined)[1] * dim(combined)[2])
+```
+
+The result is incredible, thus we should remove NAs at first. Here we'll use a function called na_removal. This function will return the column index in a list which contains more than 80% NAs, and then we'll remove the returned columns. Code is as follows:
+```{r}
+na_removal <- function(x){
+    rmlist <- 0
+    for (i in 1:dim(x)[2]){
+        if (sum(is.na(x[,i]))/dim(x)[1] > 0.8){
+            rmlist <- c(rmlist,i)
+        } 
+    }
+    return(rmlist)
+}
+rmlist <- na_removal(combined)
+combined <- combined[,-rmlist]
+prediction <- prediction[,-rmlist]
+dim(combined);dim(prediction)
+```
+
+Now the dimension has benn reduced, most of the unnecessary variables have been removed. We've finished the initial data cleaning part
+
+#Data Preprocessing
+
+This step is to eliminate the near zero variables. These variables cannot make a difference of the outcome, thus remove them will improve the interpretability and model efficiency. We'll use the code as follows:
+```{r}
+nzvlist <- nearZeroVar(combined)
+combined <- combined[,-nzvlist]
+prediction <- prediction[,-nzvlist]
+dim(combined);dim(prediction)
+```
+
+Unfortunately there's only one variable has been removed and still 59 left.
+
+#Modeling
+
+The prediction set cannot made to be the test set because the observation is very less. Thus we'll separate the combined set into training and testing set.
+```{r}
+set.seed(1)
+inTrain <- createDataPartition(combined$classe, p = .7, list = F)
+training <- combined[inTrain,]
+testing <- combined[-inTrain,]
+```
+
+
+And first we establish a simple decision tree model to test its accuracy
+```{r}
+modtree <- rpart(classe ~ ., data = training, method = "class")
+confusionMatrix(testing$classe, predict(modtree, testing, type = "class"))$overall
+```
+
+As we could see using a decision tree mod will get a 99.9% accuracy model which is really cool. But to make the report more prudent and precise we should use bagging method to build random forest to train the data again and apply a 5-folds corss validation:
+```{r}
+fivefold <- trainControl(method = "cv", number = 5, repeats = 3)
+modrf <- randomForest(classe ~ ., trControl = fivefold, data = training, ntree = 100)
+confusionMatrix(testing$classe, predict(modrf, testing))$overall
+```
+
+As we see the accuracy is 1, but compared with the accuracy of decision tree, it didn't changed so much, thus to save system operation time, we think using decision tree instead of random forest model is a better choice. Now we'll make predictions of the prediction data set:
+```{r}
+predict(modtree, prediction, type = "class")
+```
+
+#Appendix
+
+Plot of the decision tree:
+
+```{r, echo = F}
+fancyRpartPlot(modtree)
+```
+
