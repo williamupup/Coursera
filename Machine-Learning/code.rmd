@@ -109,7 +109,7 @@ confusionMatrix(testing$classe, predict(modrf, testing))$overall
 ```
 
 As we see the accuracy is 1, but compared with the accuracy of decision tree, it didn't changed so much, thus to save system operation time, we think using decision tree instead of random forest model is a better choice. Now we'll make predictions of the prediction data set:
-```{r}
+```{r, results = 'hide'}
 predict(modtree, prediction, type = "class")
 ```
 
